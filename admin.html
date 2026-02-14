@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainBoost Admin</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body{
+background: linear-gradient(135deg,#1e293b,#0f172a);
+}
+.card{
+border-radius:20px;
+}
+</style>
+</head>
+
+<body class="p-6 text-white min-h-screen">
+
+<h1 class="text-3xl font-bold mb-6 text-center">
+🛠 BrainBoost Admin Panel
+</h1>
+
+<div id="dashboard" class="hidden">
+
+<div class="grid md:grid-cols-3 gap-6 mb-6">
+
+<div class="card bg-slate-800 p-6 shadow">
+<h2 class="text-lg font-semibold">Total Users</h2>
+<p id="totalUsers" class="text-2xl mt-2">0</p>
+</div>
+
+<div class="card bg-slate-800 p-6 shadow">
+<h2 class="text-lg font-semibold">Total Games Played</h2>
+<p id="totalGames" class="text-2xl mt-2">0</p>
+</div>
+
+<div class="card bg-slate-800 p-6 shadow">
+<h2 class="text-lg font-semibold">AI Questions Generated</h2>
+<p id="totalAI" class="text-2xl mt-2">0</p>
+</div>
+
+</div>
+
+<!-- Leaderboard -->
+<div class="card bg-slate-800 p-6 mb-6">
+<h2 class="text-lg font-semibold mb-3">🌍 Global Leaderboard</h2>
+<ul id="leaderboard"></ul>
+<button onclick="resetLeaderboard()" 
+class="mt-4 bg-red-600 px-4 py-2 rounded">
+Reset Rankings
+</button>
+</div>
+
+<!-- User Management -->
+<div class="card bg-slate-800 p-6 mb-6">
+<h2 class="text-lg font-semibold mb-3">👥 User Management</h2>
+<ul id="userList"></ul>
+</div>
+
+<!-- Add Manual Question -->
+<div class="card bg-slate-800 p-6">
+<h2 class="text-lg font-semibold mb-3">➕ Add Manual Question</h2>
+
+<input id="newQuestion" placeholder="Question"
+class="border p-2 w-full mb-2 text-black rounded">
+
+<input id="newAnswer" placeholder="Answer"
+class="border p-2 w-full mb-2 text-black rounded">
+
+<button onclick="addQuestion()"
+class="bg-indigo-600 px-4 py-2 rounded">
+Add Question
+</button>
+
+</div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from 
+"https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+
+import { getAuth, onAuthStateChanged } 
+from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+
+import { getFirestore, collection, getDocs,
+doc, getDoc, deleteDoc, addDoc } 
+from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey:"YOUR_API_KEY",
+authDomain:"YOUR_AUTH_DOMAIN",
+projectId:"YOUR_PROJECT_ID"
+};
+
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+
+// 🔐 CHECK ADMIN ROLE
+onAuthStateChanged(auth, async(user)=>{
+if(!user){ 
+alert("Access Denied");
+window.location="index.html";
+return;
+}
+
+const userDoc = await getDoc(doc(db,"users",user.uid));
+
+if(userDoc.data().role !== "admin"){
+alert("Not Authorized");
+window.location="index.html";
+return;
+}
+
+document.getElementById("dashboard").classList.remove("hidden");
+
+loadStats();
+loadLeaderboard();
+loadUsers();
+});
+
+// LOAD STATS
+async function loadStats(){
+const users = await getDocs(collection(db,"users"));
+document.getElementById("totalUsers").textContent = users.size;
+
+const games = await getDocs(collection(db,"games"));
+document.getElementById("totalGames").textContent = games.size;
+
+const ai = await getDocs(collection(db,"ai_logs"));
+document.getElementById("totalAI").textContent = ai.size;
+}
+
+// LOAD LEADERBOARD
+async function loadLeaderboard(){
+const snapshot = await getDocs(collection(db,"rankings"));
+const list = document.getElementById("leaderboard");
+list.innerHTML="";
+snapshot.forEach(doc=>{
+const li=document.createElement("li");
+li.textContent=doc.data().name+" - "+doc.data().score;
+list.appendChild(li);
+});
+}
+
+// RESET LEADERBOARD
+window.resetLeaderboard = async function(){
+const snapshot = await getDocs(collection(db,"rankings"));
+snapshot.forEach(async(d)=>{
+await deleteDoc(doc(db,"rankings",d.id));
+});
+alert("Leaderboard Reset");
+loadLeaderboard();
+}
+
+// LOAD USERS
+async function loadUsers(){
+const snapshot = await getDocs(collection(db,"users"));
+const list=document.getElementById("userList");
+list.innerHTML="";
+snapshot.forEach(d=>{
+const li=document.createElement("li");
+li.className="flex justify-between mb-2";
+li.innerHTML=`
+<span>${d.data().email}</span>
+<button onclick="deleteUser('${d.id}')" 
+class="bg-red-600 px-2 rounded">Delete</button>
+`;
+list.appendChild(li);
+});
+}
+
+// DELETE USER
+window.deleteUser = async function(id){
+await deleteDoc(doc(db,"users",id));
+alert("User Deleted");
+loadUsers();
+}
+
+// ADD QUESTION
+window.addQuestion = async function(){
+await addDoc(collection(db,"manual_questions"),{
+question:newQuestion.value,
+answer:newAnswer.value
+});
+alert("Question Added");
+}
+
+</script>
+
+</body>
+</html>
